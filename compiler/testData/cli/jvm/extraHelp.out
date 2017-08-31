@@ -10,8 +10,12 @@ where advanced options include:
   -Xjavac-arguments=<option[,]> Java compiler arguments
   -Xjsr305-annotations={ignore|enable|warn}
                              Specify global behavior for JSR-305 nullability annotations: ignore, treat as other supported nullability annotations, or report a warning
+  -Xoverride-migration-state=<fully qualified class name>:{ignore|enable|warn}
+                             Specify behavior for JSR-305 user nullability annotation: ignore them, warn on incorrect nullability usages, or treat as other supported nullability annotations
   -Xload-builtins-from-dependencies
                              Load definitions of built-in declarations from module dependencies, instead of from the compiler
+  -Xglobal-migration-state={ignore|enable|warn}
+                             Specify default behavior for @UnderMigration annotation annotation: ignore annotations marked with migration, warn on incorrect nullability usages, or treat as other supported nullability annotations
   -Xno-call-assertions       Don't generate not-null assertion after each invocation of method returning not-null
   -Xno-optimize              Disable optimizations
   -Xno-param-assertions      Don't generate not-null assertions on parameters of methods accessible from Java

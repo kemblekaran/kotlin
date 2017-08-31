@@ -24,16 +24,33 @@ import org.jetbrains.kotlin.resolve.constants.ArrayValue
 import org.jetbrains.kotlin.resolve.constants.ConstantValue
 import org.jetbrains.kotlin.resolve.constants.EnumValue
 import org.jetbrains.kotlin.resolve.descriptorUtil.annotationClass
+import org.jetbrains.kotlin.resolve.descriptorUtil.firstArgumentValue
 import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
 import org.jetbrains.kotlin.storage.StorageManager
 import org.jetbrains.kotlin.utils.Jsr305State
 import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
+import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 
 private val TYPE_QUALIFIER_NICKNAME_FQNAME = FqName("javax.annotation.meta.TypeQualifierNickname")
 private val TYPE_QUALIFIER_FQNAME = FqName("javax.annotation.meta.TypeQualifier")
 private val TYPE_QUALIFIER_DEFAULT_FQNAME = FqName("javax.annotation.meta.TypeQualifierDefault")
 
-class AnnotationTypeQualifierResolver(storageManager: StorageManager, val jsr305State: Jsr305State) {
+private val MIGRATION_ANNOTATION_FQNAME = FqName("kotlin.annotation.UnderMigration")
+
+data class Jsr305AnnotationsPolicy(
+        val global: Jsr305State,
+        val migration: Jsr305State?,
+        val user: Map<FqName, Jsr305State>
+) {
+    companion object {
+        val IGNORE = Jsr305AnnotationsPolicy(Jsr305State.IGNORE, Jsr305State.IGNORE, mapOf())
+        val DEFAULT = Jsr305AnnotationsPolicy(Jsr305State.WARN, Jsr305State.IGNORE, mapOf())
+    }
+
+    fun isIgnored(): Boolean = this == IGNORE
+}
+
+class AnnotationTypeQualifierResolver(storageManager: StorageManager, val policyForJsr305Annotations: Jsr305AnnotationsPolicy) {
     enum class QualifierApplicabilityType {
         METHOD_RETURN_TYPE, VALUE_PARAMETER, FIELD, TYPE_USE
     }
@@ -64,7 +81,7 @@ class AnnotationTypeQualifierResolver(storageManager: StorageManager, val jsr305
     }
 
     fun resolveTypeQualifierAnnotation(annotationDescriptor: AnnotationDescriptor): AnnotationDescriptor? {
-        if (jsr305State.isIgnored()) {
+        if (policyForJsr305Annotations.isIgnored()) {
             return null
         }
 
@@ -75,7 +92,7 @@ class AnnotationTypeQualifierResolver(storageManager: StorageManager, val jsr305
     }
 
     fun resolveTypeQualifierDefaultAnnotation(annotationDescriptor: AnnotationDescriptor): TypeQualifierWithApplicability? {
-        if (jsr305State.isIgnored()) {
+        if (policyForJsr305Annotations.isIgnored()) {
             return null
         }
 
@@ -99,6 +116,27 @@ class AnnotationTypeQualifierResolver(storageManager: StorageManager, val jsr305
                 typeQualifierDefaultAnnotatedClass.annotations.firstNotNullResult(this::resolveTypeQualifierAnnotation)
                 ?: return null
         return TypeQualifierWithApplicability(typeQualifier, elementTypesMask)
+    }
+
+    fun resolveJsr305AnnotationState(annotationDescriptor: AnnotationDescriptor): Jsr305State {
+        policyForJsr305Annotations.user[annotationDescriptor.fqName]?.let { return it }
+        annotationDescriptor.annotationClass?.migrationAnnotationStatus()?.let { return it }
+
+        return policyForJsr305Annotations.global
+    }
+
+    private fun ClassDescriptor.migrationAnnotationStatus(): Jsr305State? {
+        val descriptor = annotations.findAnnotation(MIGRATION_ANNOTATION_FQNAME) ?: return null
+        val stateDescriptor = descriptor.firstArgumentValue()?.safeAs<ClassDescriptor>() ?: return null
+
+        policyForJsr305Annotations.migration?.let  { return policyForJsr305Annotations.migration }
+
+        return when (stateDescriptor.name.asString()) {
+            "ERROR" -> Jsr305State.ENABLE
+            "WARNING" -> Jsr305State.WARN
+            "IGNORE" -> Jsr305State.IGNORE
+            else -> null
+        }
     }
 
     private fun ConstantValue<*>.mapConstantToQualifierApplicabilityTypes(): List<QualifierApplicabilityType> =

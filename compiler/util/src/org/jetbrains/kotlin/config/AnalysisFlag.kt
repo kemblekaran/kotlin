@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.config
 
+import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.utils.Jsr305State
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
@@ -42,6 +43,14 @@ class AnalysisFlag<out T> internal constructor(
         object Jsr305StateIgnoreByDefault {
             operator fun provideDelegate(instance: Any?, property: KProperty<*>) = Flag(property.name, Jsr305State.IGNORE)
         }
+
+        object Jsr305StateNullByDefault {
+            operator fun provideDelegate(instance: Any?, property: KProperty<*>) = Flag<Jsr305State?>(property.name, null)
+        }
+
+        object Jsr305StateForUserAnnotations {
+            operator fun provideDelegate(instance: Any?, property: KProperty<*>) = Flag(property.name, mapOf<FqName, Jsr305State>())
+        }
     }
 
     companion object Flags {
@@ -53,5 +62,11 @@ class AnalysisFlag<out T> internal constructor(
 
         @JvmStatic
         val jsr305GlobalState by Flag.Jsr305StateIgnoreByDefault
+
+        @JvmStatic
+        val jsr305MigrationState by Flag.Jsr305StateNullByDefault
+
+        @JvmStatic
+        val jsr305UserAnnotationsState by Flag.Jsr305StateForUserAnnotations
     }
 }

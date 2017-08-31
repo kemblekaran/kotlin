@@ -112,20 +112,26 @@ fun LazyJavaResolverContext.child(
 fun LazyJavaResolverContext.computeNewDefaultTypeQualifiers(
         additionalAnnotations: Annotations
 ): JavaTypeQualifiersByElementType? {
-    val nullabilityQualifiersWithApplicability =
-            additionalAnnotations.mapNotNull(this::extractDefaultNullabilityQualifier)
+    val typeQualifierWithState = additionalAnnotations.mapNotNull {
+        val typeQualifierResolver = components.annotationTypeQualifierResolver
+        val typeQualifier = extractDefaultNullabilityQualifier(it) ?: return@mapNotNull null
+        val state = typeQualifierResolver.resolveJsr305AnnotationState(it).takeIf { !it.isIgnored() } ?: return@mapNotNull null
 
-    if (nullabilityQualifiersWithApplicability.isEmpty()) return defaultTypeQualifiers
+        typeQualifier to state
+    }
+
+
+    if (typeQualifierWithState.isEmpty()) return defaultTypeQualifiers
 
     val nullabilityQualifiersByType =
             defaultTypeQualifiers?.nullabilityQualifiers?.let(::QualifierByApplicabilityType)
             ?: QualifierByApplicabilityType(AnnotationTypeQualifierResolver.QualifierApplicabilityType::class.java)
 
     var wasUpdate = false
-    val isForWarning = components.annotationTypeQualifierResolver.jsr305State.isWarning()
-    for ((nullability, applicableTo) in nullabilityQualifiersWithApplicability) {
+    for ((typeQualifier, state) in typeQualifierWithState) {
+        val (qualifier, applicableTo) = typeQualifier
         for (applicabilityType in applicableTo) {
-            nullabilityQualifiersByType[applicabilityType] = NullabilityQualifierWithMigrationStatus(nullability, isForWarning)
+            nullabilityQualifiersByType[applicabilityType] = NullabilityQualifierWithMigrationStatus(qualifier, state.isWarning())
             wasUpdate = true
         }
     }

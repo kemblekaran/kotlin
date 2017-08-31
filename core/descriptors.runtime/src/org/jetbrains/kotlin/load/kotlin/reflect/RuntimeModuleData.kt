@@ -23,6 +23,7 @@ import org.jetbrains.kotlin.descriptors.SupertypeLoopChecker
 import org.jetbrains.kotlin.descriptors.impl.ModuleDescriptorImpl
 import org.jetbrains.kotlin.incremental.components.LookupTracker
 import org.jetbrains.kotlin.load.java.AnnotationTypeQualifierResolver
+import org.jetbrains.kotlin.load.java.Jsr305AnnotationsPolicy
 import org.jetbrains.kotlin.load.java.components.*
 import org.jetbrains.kotlin.load.java.lazy.JavaResolverComponents
 import org.jetbrains.kotlin.load.java.lazy.LazyJavaPackageFragmentProvider
@@ -59,7 +60,7 @@ class RuntimeModuleData private constructor(
             val runtimePackagePartProvider = RuntimePackagePartProvider(classLoader)
             val javaResolverCache = JavaResolverCache.EMPTY
             val notFoundClasses = NotFoundClasses(storageManager, module)
-            val annotationTypeQualifierResolver = AnnotationTypeQualifierResolver(storageManager, Jsr305State.IGNORE)
+            val annotationTypeQualifierResolver = AnnotationTypeQualifierResolver(storageManager, Jsr305AnnotationsPolicy.IGNORE)
             val globalJavaResolverContext = JavaResolverComponents(
                     storageManager, ReflectJavaClassFinder(classLoader), reflectKotlinClassFinder, deserializedDescriptorResolver,
                     ExternalAnnotationResolver.EMPTY, SignaturePropagator.DO_NOTHING, RuntimeErrorReporter, javaResolverCache,

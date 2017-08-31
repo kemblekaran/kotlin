@@ -18,6 +18,7 @@ package org.jetbrains.kotlin.cli.common.arguments
 
 import org.jetbrains.kotlin.config.AnalysisFlag
 import org.jetbrains.kotlin.config.JvmTarget
+import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.utils.Jsr305State
 
 class K2JVMCompilerArguments : CommonCompilerArguments() {
@@ -161,6 +162,22 @@ class K2JVMCompilerArguments : CommonCompilerArguments() {
     )
     var jsr305GlobalState: String? by FreezableVar(Jsr305State.DEFAULT.description)
 
+    @Argument(
+            value = "-Xglobal-migration-state",
+            valueDescription = "{ignore|enable|warn}",
+            description = "Specify default behavior for @UnderMigration annotation annotation: " +
+                          "ignore annotations marked with migration, warn on incorrect nullability usages, or treat as other supported nullability annotations"
+    )
+    var migrationState: String? by FreezableVar(null)
+
+    @Argument(
+            value = "-Xoverride-migration-state",
+            valueDescription = "<fully qualified class name>:{ignore|enable|warn}",
+            description = "Specify behavior for JSR-305 user nullability annotation: " +
+                          "ignore them, warn on incorrect nullability usages, or treat as other supported nullability annotations"
+    )
+    var jsr305UserAnnotationsState: Array<String>? by FreezableVar(arrayOf<String>())
+
     // Paths to output directories for friend modules.
     var friendPaths: Array<String>? by FreezableVar(null)
 
@@ -169,6 +186,18 @@ class K2JVMCompilerArguments : CommonCompilerArguments() {
         Jsr305State.findByDescription(jsr305GlobalState)?.let {
             result.put(AnalysisFlag.jsr305GlobalState, it)
         }
+
+        Jsr305State.findByDescription(migrationState)?.let {
+            result.put(AnalysisFlag.jsr305MigrationState, it)
+        }
+
+        jsr305UserAnnotationsState?.mapNotNull {
+            val (name, stateDescription) = it.split(":").takeIf { it.size == 2 } ?: return@mapNotNull null
+            val state = Jsr305State.findByDescription(stateDescription) ?: return@mapNotNull null
+
+            FqName(name) to state
+        }?.toMap()?.let { result.put(AnalysisFlag.jsr305UserAnnotationsState, it) }
+
         return result
     }
 }

@@ -35,4 +35,10 @@ enum class Jsr305State(
 
     fun isIgnored(): Boolean = this == IGNORE
     fun isWarning(): Boolean = this == WARN
+
+    enum class Kind {
+        GLOBAL,
+        MIGRATION,
+        FQNAME
+    }
 }

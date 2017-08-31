@@ -35,12 +35,13 @@ import org.jetbrains.kotlin.load.kotlin.SignatureBuildingComponents
 import org.jetbrains.kotlin.load.kotlin.computeJvmDescriptor
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.platform.JavaToKotlinClassMap
-import org.jetbrains.kotlin.resolve.descriptorUtil.firstArgumentValue
+import org.jetbrains.kotlin.resolve.descriptorUtil.*
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.asFlexibleType
 import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
 import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
+import org.jetbrains.kotlin.utils.Jsr305State
 import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 import java.util.*
@@ -74,13 +75,17 @@ class SignatureEnhancement(private val annotationTypeQualifierResolver: Annotati
             in NOT_NULL_ANNOTATIONS -> NullabilityQualifierWithMigrationStatus(NullabilityQualifier.NOT_NULL)
             JAVAX_NONNULL_ANNOTATION -> annotationDescriptor.extractNullabilityTypeFromArgument()
             else -> {
-                val forWarning = annotationTypeQualifierResolver.jsr305State.isWarning()
-
-                annotationTypeQualifierResolver
+                val typeQualifier = annotationTypeQualifierResolver
                         .resolveTypeQualifierAnnotation(annotationDescriptor)
                         ?.takeIf { it.fqName == JAVAX_NONNULL_ANNOTATION }
-                        ?.extractNullabilityTypeFromArgument()
-                        ?.copy(isForWarningOnly = forWarning)
+                        ?: return null
+
+                val jsr305State = annotationTypeQualifierResolver.resolveJsr305AnnotationState(annotationDescriptor)
+                if (jsr305State.isIgnored()) return null
+
+                typeQualifier
+                        .extractNullabilityTypeFromArgument()
+                        ?.copy(isForWarningOnly = jsr305State.isWarning())
             }
         }
     }

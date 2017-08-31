@@ -68,6 +68,15 @@ public enum class AnnotationRetention {
 }
 
 /**
+ * Contains the list of possible migration statuses.
+ */
+public enum class MigrationStatus {
+    ERROR,
+    WARNING,
+    IGNORE,
+}
+
+/**
  * This meta-annotation indicates the kinds of code elements which are possible targets of an annotation.
  *
  * If the target meta-annotation is not present on an annotation declaration, the annotation
@@ -99,3 +108,10 @@ public annotation class Repeatable
  */
 @Target(AnnotationTarget.ANNOTATION_CLASS)
 public annotation class MustBeDocumented
+
+/**
+ * This meta-annotation is intended for user nullability annotations with JSR-305 type qualifiers. Behaviour of meta-annotated
+ * nullability annotations can be controlled via compilation flag.
+ */
+@Target(AnnotationTarget.ANNOTATION_CLASS)
+public annotation class UnderMigration(val status: MigrationStatus)
