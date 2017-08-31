@@ -58,13 +58,9 @@ abstract class AbstractForeignAnnotationsTest : AbstractDiagnosticsTest() {
     }
 
     private fun loadAnalysisFlags(module: List<TestFile>): Map<AnalysisFlag<*>, Any?> {
-        val globalState = module.mapNotNull {
-            InTextDirectivesUtils.findLinesWithPrefixesRemoved(it.expectedText, JSR305_GLOBAL_DIRECTIVE).firstOrNull()
-        }.firstOrNull().let({ Jsr305State.findByDescription(it) }) ?: Jsr305State.ENABLE
 
-        val migrationState = module.mapNotNull {
-            InTextDirectivesUtils.findLinesWithPrefixesRemoved(it.expectedText, JSR305_MIGRATION_DIRECTIVE).firstOrNull()
-        }.firstOrNull().let({ Jsr305State.findByDescription(it) })
+        val globalState = module.hasDirective(JSR305_GLOBAL_DIRECTIVE) ?: Jsr305State.ENABLE
+        val migrationState = module.hasDirective(JSR305_MIGRATION_DIRECTIVE)
 
         val userAnnotationsState = module.flatMap {
             InTextDirectivesUtils.findListWithPrefixes(it.expectedText, JSR305_SPECIAL_DIRECTIVE)
@@ -81,4 +77,8 @@ abstract class AbstractForeignAnnotationsTest : AbstractDiagnosticsTest() {
                 AnalysisFlag.jsr305UserAnnotationsState to userAnnotationsState
         )
     }
+
+    fun List<TestFile>.hasDirective(directive: String): Jsr305State? = mapNotNull {
+            InTextDirectivesUtils.findLinesWithPrefixesRemoved(it.expectedText, directive).firstOrNull()
+    }.firstOrNull().let { Jsr305State.findByDescription(it) }
 }

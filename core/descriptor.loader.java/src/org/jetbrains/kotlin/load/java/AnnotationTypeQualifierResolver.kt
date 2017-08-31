@@ -50,7 +50,7 @@ data class Jsr305AnnotationsPolicy(
     fun isIgnored(): Boolean = this == IGNORE
 }
 
-class AnnotationTypeQualifierResolver(storageManager: StorageManager, val policyForJsr305Annotations: Jsr305AnnotationsPolicy) {
+class AnnotationTypeQualifierResolver(storageManager: StorageManager, private val policyForJsr305Annotations: Jsr305AnnotationsPolicy) {
     enum class QualifierApplicabilityType {
         METHOD_RETURN_TYPE, VALUE_PARAMETER, FIELD, TYPE_USE
     }
@@ -126,8 +126,8 @@ class AnnotationTypeQualifierResolver(storageManager: StorageManager, val policy
     }
 
     private fun ClassDescriptor.migrationAnnotationStatus(): Jsr305State? {
-        val descriptor = annotations.findAnnotation(MIGRATION_ANNOTATION_FQNAME) ?: return null
-        val stateDescriptor = descriptor.firstArgumentValue()?.safeAs<ClassDescriptor>() ?: return null
+        val stateDescriptor = annotations.findAnnotation(MIGRATION_ANNOTATION_FQNAME)?.firstArgumentValue()?.safeAs<ClassDescriptor>()
+                              ?: return null
 
         policyForJsr305Annotations.migration?.let  { return policyForJsr305Annotations.migration }
 
