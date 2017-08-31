@@ -25,6 +25,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.text.StringUtilRt
 import com.intellij.patterns.PatternConditionPlus
+import com.intellij.patterns.PsiClassNamePatternCondition
+import com.intellij.patterns.ValuePatternCondition
 import com.intellij.psi.*
 import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil
 import com.intellij.psi.search.LocalSearchScope
@@ -53,6 +55,7 @@ import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
 import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 import org.jetbrains.kotlin.resolve.source.getPsi
 import org.jetbrains.kotlin.util.aliasImportMap
+import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
 
 class KotlinLanguageInjector(
         val configuration: Configuration,
@@ -69,6 +72,7 @@ class KotlinLanguageInjector(
     }
 
     private data class KotlinCachedInjection(val modificationCount: Long, val baseInjection: BaseInjection)
+
     private var KtStringTemplateExpression.cachedInjectionWithModification: KotlinCachedInjection? by UserDataProperty(
             Key.create<KotlinCachedInjection>("CACHED_INJECTION_WITH_MODIFICATION"))
 
@@ -352,10 +356,15 @@ class KotlinLanguageInjector(
 
     private val injectableTargetClassShortNames = CachedValuesManager.getManager(project)
             .createCachedValue({
-                                   val injectableTargets =
-                                           configuration.getInjections(JavaLanguageInjectionSupport.JAVA_SUPPORT_ID)
-                                                   .flatMapTo(HashSet()) { it.injectionPlaces.mapNotNull { retrievePlaceTargetClass(it) } }
-                                   CachedValueProvider.Result.create(injectableTargets, configuration)
+                                   CachedValueProvider.Result.create(HashSet<String>().apply {
+                                       for (injection in configuration.getInjections(JavaLanguageInjectionSupport.JAVA_SUPPORT_ID)) {
+                                           for (injectionPlace in injection.injectionPlaces) {
+                                               for (targetClassFQN in retrievePlaceTargetClassesFQNs(injectionPlace)) {
+                                                   add(StringUtilRt.getShortName(targetClassFQN))
+                                               }
+                                           }
+                                       }
+                                   }, configuration)
                                }, false)
 
     private fun fastCheckInjectionsExists(annotationEntry: KtAnnotationEntry): Boolean {
@@ -365,14 +374,13 @@ class KotlinLanguageInjector(
         return annotationShortName in injectableTargetClassShortNames.value
     }
 
-    private fun retrievePlaceTargetClass(place: InjectionPlace): String? {
-        val classCondition = place.elementPattern.condition.conditions.firstOrNull { it.debugMethodName == "definedInClass" } as? PatternConditionPlus<*, *> ?: return null
-        val qNamePattern = classCondition.valuePattern.condition.conditions.firstOrNull { it.debugMethodName == "withQualifiedName" } ?: return null
-        return qNamePattern.run {
-            StringUtilRt.getShortName(javaClass.declaredFields.first { it.name.endsWith("qname") }
-                                              .apply { isAccessible = true }
-                                              .get(this) as String)
-        }
-
+    private fun retrievePlaceTargetClassesFQNs(place: InjectionPlace): Collection<String> {
+        val classCondition = place.elementPattern.condition.conditions.firstOrNull { it.debugMethodName == "definedInClass" }
+                                     as? PatternConditionPlus<*, *> ?: return emptyList()
+        val psiClassNamePatternCondition = classCondition.valuePattern.condition.conditions.
+                firstIsInstanceOrNull<PsiClassNamePatternCondition>() ?: return emptyList()
+        val valuePatternCondition = psiClassNamePatternCondition.stringPattern.condition.conditions.firstIsInstanceOrNull<ValuePatternCondition<String>>() ?: return emptyList()
+        return valuePatternCondition.values
     }
+
 }
