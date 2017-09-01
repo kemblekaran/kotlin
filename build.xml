@@ -658,6 +658,7 @@
             <skip pattern="kotlin/Metadata"/>
             <src>
                 <pathelement path="plugins/uast-kotlin/src"/>
+                <pathelement path="plugins/lint/lint-cli-utils/src"/>
             </src>
             <classpath>
                 <pathelement path="${idea.sdk}/core/intellij-core.jar"/>

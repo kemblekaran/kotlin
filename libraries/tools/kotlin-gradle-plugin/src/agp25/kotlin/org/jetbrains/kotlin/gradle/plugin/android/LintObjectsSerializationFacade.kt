@@ -12,6 +12,7 @@ import org.gradle.api.internal.AsmBackedClassGenerator
 import org.objenesis.strategy.StdInstantiatorStrategy
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.*
 
 class LintObjectsSerializationFacade {
@@ -22,6 +23,7 @@ class LintObjectsSerializationFacade {
         instantiatorStrategy = Kryo.DefaultInstantiatorStrategy(StdInstantiatorStrategy())
 
         register(EnumMap::class.java, JavaSerializer())
+        register(File::class.java, JavaSerializer())
         setDefaultSerializer(NameFilteredFieldSerializer.Factory)
         ImmutableListSerializer.registerSerializers(this)
         ImmutableSetSerializer.registerSerializers(this)

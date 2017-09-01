@@ -82,6 +82,7 @@
       <module fileurl="file://$PROJECT_DIR$/compiler/light-classes/light-classes.iml" filepath="$PROJECT_DIR$/compiler/light-classes/light-classes.iml" group="compiler/java" />
       <module fileurl="file://$PROJECT_DIR$/plugins/lint/lint-api/lint-api.iml" filepath="$PROJECT_DIR$/plugins/lint/lint-api/lint-api.iml" group="plugins/lint" />
       <module fileurl="file://$PROJECT_DIR$/plugins/lint/lint-checks/lint-checks.iml" filepath="$PROJECT_DIR$/plugins/lint/lint-checks/lint-checks.iml" group="plugins/lint" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/lint/lint-cli-utils/lint-cli-utils.iml" filepath="$PROJECT_DIR$/plugins/lint/lint-cli-utils/lint-cli-utils.iml" />
       <module fileurl="file://$PROJECT_DIR$/plugins/lint/lint-idea/lint-idea.iml" filepath="$PROJECT_DIR$/plugins/lint/lint-idea/lint-idea.iml" group="plugins/lint" />
       <module fileurl="file://$PROJECT_DIR$/plugins/noarg/noarg-cli/noarg-cli.iml" filepath="$PROJECT_DIR$/plugins/noarg/noarg-cli/noarg-cli.iml" group="plugins/noarg" />
       <module fileurl="file://$PROJECT_DIR$/plugins/noarg/noarg-ide/noarg-ide.iml" filepath="$PROJECT_DIR$/plugins/noarg/noarg-ide/noarg-ide.iml" group="plugins/noarg" />

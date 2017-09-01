@@ -13,7 +13,6 @@ import com.android.tools.lint.Reporter.Stats
 import com.android.tools.lint.checks.BuiltinIssueRegistry
 import com.android.tools.lint.checks.GradleDetector
 import com.android.tools.lint.checks.UnusedResourceDetector
-import com.android.tools.lint.client.api.LintBaseline
 import com.android.tools.lint.detector.api.*
 import com.android.utils.FileUtils
 import com.android.utils.Pair
@@ -28,38 +27,54 @@ import org.gradle.api.tasks.TaskAction
 
 import java.io.File
 import java.io.IOException
-import java.util.Comparator
 
 import com.android.SdkConstants.VALUE_FALSE
 import com.android.build.gradle.internal.LintGradleProject
 import com.android.tools.lint.*
-import com.android.tools.lint.client.api.IssueRegistry
-import com.android.tools.lint.client.api.LintRequest
+import com.android.tools.lint.client.api.*
 import com.intellij.codeInsight.ExternalAnnotationsManager
 import com.intellij.codeInsight.InferredAnnotationsManager
+import com.intellij.core.CoreJavaFileManager
 import com.intellij.core.JavaCoreApplicationEnvironment
 import com.intellij.core.JavaCoreProjectEnvironment
+import com.intellij.mock.MockProject
 import com.intellij.openapi.components.ServiceManager
 import com.intellij.openapi.extensions.Extensions
+import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.impl.jar.CoreJarVirtualFile
 import com.intellij.psi.PsiElementFinder
 import com.intellij.psi.impl.PsiElementFinderImpl
 import com.intellij.psi.impl.file.impl.JavaFileManager
+import com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.kotlin.asJava.LightClassGenerationSupport
 import org.jetbrains.kotlin.asJava.finder.JavaElementFinder
-import org.jetbrains.kotlin.cli.jvm.compiler.CliLightClassGenerationSupport
-import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
+import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.cli.common.messages.MessageRenderer
+import org.jetbrains.kotlin.cli.common.messages.PrintingMessageCollector
+import org.jetbrains.kotlin.cli.jvm.compiler.*
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment.Companion.registerApplicationServices
-import org.jetbrains.kotlin.cli.jvm.compiler.MockExternalAnnotationsManager
-import org.jetbrains.kotlin.cli.jvm.compiler.MockInferredAnnotationsManager
+import org.jetbrains.kotlin.cli.jvm.config.JavaSourceRoot
+import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.codegen.extensions.ClassBuilderInterceptorExtension
 import org.jetbrains.kotlin.codegen.extensions.ExpressionCodegenExtension
+import org.jetbrains.kotlin.config.CommonConfigurationKeys
+import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.config.addKotlinSourceRoot
+import org.jetbrains.kotlin.config.languageVersionSettings
 import org.jetbrains.kotlin.extensions.DeclarationAttributeAltererExtension
 import org.jetbrains.kotlin.extensions.PreprocessedVirtualFileFactoryExtension
 import org.jetbrains.kotlin.extensions.StorageComponentContainerContributor
+import org.jetbrains.kotlin.incremental.isKotlinFile
+import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.resolve.CodeAnalyzerInitializer
 import org.jetbrains.kotlin.resolve.extensions.SyntheticResolveExtension
 import org.jetbrains.kotlin.resolve.jvm.extensions.AnalysisHandlerExtension
 import org.jetbrains.kotlin.resolve.jvm.extensions.PackageFragmentProviderExtension
+import org.jetbrains.uast.evaluation.UEvaluatorExtension
+import java.util.*
+import kotlin.reflect.jvm.internal.impl.descriptors.PackagePartProvider
 
 class KotlinLintExecutor(
         val project: Project,
@@ -332,6 +347,12 @@ class KotlinLintExecutor(
         val kotlinCoreEnvCompanion = kotlinCoreEnv.getDeclaredField("Companion").get(null)
         kotlinCoreEnvCompanion.javaClass.declaredMethods.single { it.name == "registerApplicationServices" }
                 .invoke(kotlinCoreEnvCompanion, environment)
+
+        val area = Extensions.getRootArea()
+        val kotlinEvaluatorExtension = Class.forName("org.jetbrains.uast.kotlin.evaluation.KotlinEvaluatorExtension")
+        //TODO
+//        area.getExtensionPoint(UEvaluatorExtension.EXTENSION_POINT_NAME)
+//                .registerExtension(kotlinEvaluatorExtension.newInstance() as UEvaluatorExtension)
     }
 
     fun getManifestReportFile(variant: Variant?): File? {
@@ -419,6 +440,14 @@ class KotlinLintExecutor(
     }
 }
 
+class KotlinLintDriver(registry: IssueRegistry, client: LintClient) : LintDriver(registry, client) {
+    override fun analyze(request: LintRequest) {
+
+    }
+
+
+}
+
 private class KotlinLintGradleClient(
         registry: IssueRegistry?,
         flags: LintCliFlags?,
@@ -446,15 +475,65 @@ private class KotlinLintGradleClient(
         return super.createLintRequest(files)
     }
 
-    override fun initializeProjects(knownProjects: MutableCollection<com.android.tools.lint.detector.api.Project>?) {
-        super.initializeProjects(knownProjects)
-//        registerKotlinProjectComponents(this)
+    override fun createDriver(registry: IssueRegistry): LintDriver {
+        return super.createDriver(registry).apply {
+            addLintListener { driver, type, context ->
+                if (type != LintListener.EventType.SCANNING_PROJECT) return@addLintListener
+
+                val ideaProject = this@KotlinLintGradleClient.ideaProject as MockProject
+                val allJavaRoots = getAllJavaRoots(ideaProject)
+
+                val allSourceDirs = listOf(
+                        context.project.javaSourceFolders,
+                        context.project.generatedSourceFolders,
+                        context.project.testSourceFolders).flatMap { it }
+
+                val kotlinFiles = allSourceDirs.flatMap { it.walk().filter { it.isKotlinFile() }.asIterable() }
+                if (kotlinFiles.isEmpty()) return@addLintListener
+
+                Class.forName("org.jetbrains.kotlin.lint.KotlinLintAnalyzerFacade").declaredMethods
+                        .single { it.name == "analyze" }
+                        .invoke(null, kotlinFiles, allJavaRoots, ideaProject)
+            }
+        }
     }
 
-    private fun registerKotlinProjectComponents(environment: JavaCoreProjectEnvironment) = with (environment.project) {
+    private fun getAllJavaRoots(project: MockProject): List<File> {
+        val javaFileManager = JavaFileManager.SERVICE.getInstance(project) as CoreJavaFileManager
+
+        @Suppress("UNCHECKED_CAST")
+        val allJavaSourceRoots = javaFileManager.let { fileManager ->
+            val roots = fileManager.javaClass.getDeclaredMethod("roots")
+            roots.isAccessible = true
+            roots.invoke(fileManager)
+        } as List<VirtualFile>
+
+        return allJavaSourceRoots.mapNotNull { getPath(it) }.map { File(it) }.filter { it.exists() }
+    }
+
+    override fun initializeProjects(knownProjects: Collection<com.android.tools.lint.detector.api.Project>) {
+        super.initializeProjects(knownProjects)
+        val ideaProject = this.ideaProject as MockProject
+        registerKotlinProjectComponents(ideaProject)
+    }
+
+    private fun getPath(virtualFile: VirtualFile): String? = when (virtualFile) {
+        is CoreJarVirtualFile -> virtualFile.canonicalPath?.substringBefore("!")
+        else -> virtualFile.canonicalPath
+    }
+
+    private fun registerKotlinProjectComponents(project: MockProject ) {
         val kotlinCoreEnv = Class.forName("org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment")
         val kotlinCoreEnvCompanion = kotlinCoreEnv.getDeclaredField("Companion").get(null)
-        kotlinCoreEnvCompanion.javaClass.declaredMethods.single { it.name == "registerProjectServices" }
-                .invoke(kotlinCoreEnvCompanion, environment, null)
+
+        kotlinCoreEnvCompanion.javaClass
+                .getDeclaredMethod("registerProjectServices", MockProject::class.java, MessageCollector::class.java)
+                .invoke(kotlinCoreEnvCompanion, project, null)
+        kotlinCoreEnvCompanion.javaClass
+                .getDeclaredMethod("registerKotlinLightClassSupport", MockProject::class.java)
+                .invoke(kotlinCoreEnvCompanion, project)
+        kotlinCoreEnvCompanion.javaClass
+                .getDeclaredMethod("registerPluginExtensionPoints", MockProject::class.java)
+                .invoke(kotlinCoreEnvCompanion, project)
     }
 }
