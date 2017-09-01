@@ -52,9 +52,6 @@ import java.io.FileDescriptor
 open class ParcelableCodegenExtension : ExpressionCodegenExtension {
     private companion object {
         private val FILE_DESCRIPTOR_FQNAME = FqName(FileDescriptor::class.java.canonicalName)
-        private val PARCELER_FQNAME = FqName(Parceler::class.java.canonicalName)
-
-        fun KotlinType.isParceler() = constructor.declarationDescriptor?.fqNameSafe == PARCELER_FQNAME
     }
 
     protected open fun isExperimental(element: KtElement) = true
@@ -66,15 +63,17 @@ open class ParcelableCodegenExtension : ExpressionCodegenExtension {
         val sourceElement = (codegen.myClass as? KtClassOrObject) ?: return
         if (!isExperimental(sourceElement)) return
 
-        assert(parcelableClass.kind == ClassKind.CLASS || parcelableClass.kind == ClassKind.OBJECT)
+        if (builderMode.generateBodies) {
+            assert(parcelableClass.kind == ClassKind.CLASS || parcelableClass.kind == ClassKind.OBJECT)
+        }
 
-        val propertiesToSerialize = getPropertiesToSerialize(codegen, parcelableClass)
+        val propertiesToSerialize = if (builderMode.generateBodies) getPropertiesToSerialize(codegen, parcelableClass) else emptyList()
 
         val parcelClassType = ParcelableResolveExtension.resolveParcelClassType(parcelableClass.module)
         val parcelAsmType = codegen.typeMapper.mapType(parcelClassType)
 
         val parcelerObject = parcelableClass.companionObjectDescriptor?.takeIf {
-            TypeUtils.getAllSupertypes(it.defaultType).any { it.isParceler() }
+            TypeUtils.getAllSupertypes(it.defaultType).any { it.isParceler }
         }
 
         with (parcelableClass) {
@@ -209,6 +208,12 @@ open class ParcelableCodegenExtension : ExpressionCodegenExtension {
     }
 
     private fun writeCreatorAccessField(codegen: ImplementationBodyCodegen, parcelableClass: ClassDescriptor) {
+        val nonSyntheticCreatorField = parcelableClass.companionObjectDescriptor?.unsubstitutedMemberScope?.
+                getContributedVariables(Name.identifier(CREATOR.jvmName), NoLookupLocation.FROM_BACKEND)
+                ?.firstOrNull()
+                ?.takeIf { it.annotations.hasAnnotation(FqName(JvmField::class.java.name)) }
+        if (nonSyntheticCreatorField != null) return
+
         val parcelableAsmType = codegen.typeMapper.mapType(parcelableClass.defaultType)
         val creatorAsmType = Type.getObjectType(
                 codegen.typeMapper.typeMappingConfiguration.innerClassNameFactory(parcelableAsmType.internalName, "Creator"))
@@ -295,7 +300,7 @@ open class ParcelableCodegenExtension : ExpressionCodegenExtension {
                             it.typeParameters.isEmpty()
                                 && it.kind == CallableMemberDescriptor.Kind.DECLARATION
                                 && (it.valueParameters.size == 1 && KotlinBuiltIns.isInt(it.valueParameters[0].type))
-                                && !((it.containingDeclaration as? ClassDescriptor)?.defaultType?.isParceler() ?: true)
+                                && !((it.containingDeclaration as? ClassDescriptor)?.defaultType?.isParceler ?: true)
                         }
 
                 if (newArrayMethod != null) {
@@ -319,7 +324,8 @@ open class ParcelableCodegenExtension : ExpressionCodegenExtension {
 
     private fun FunctionDescriptor.write(codegen: ImplementationBodyCodegen, code: ExpressionCodegen.() -> Unit) {
         codegen.functionCodegen.generateMethod(JvmDeclarationOrigin.NO_ORIGIN, this, object : CodegenBased(codegen.state) {
-            override fun doGenerateBody(e: ExpressionCodegen, signature: JvmMethodSignature) {
+            override fun doGenerateBody(e: ExpressionCodegen, signature: JvmMethodSignature) = with(e) {
+                if (codegen.state.classBuilderMode == ClassBuilderMode.LIGHT_CLASSES) return
                 e.code()
             }
         })
