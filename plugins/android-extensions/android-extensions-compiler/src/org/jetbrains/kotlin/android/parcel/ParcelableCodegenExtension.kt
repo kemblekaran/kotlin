@@ -111,6 +111,8 @@ open class ParcelableCodegenExtension : ExpressionCodegenExtension {
                                 "(${containerAsmType.descriptor}${PARCEL_TYPE.descriptor}I)V", false)
             }
             else {
+                val context = ParcelSerializer.ParcelSerializerContext(codegen.typeMapper, containerAsmType)
+
                 for ((fieldName, type) in properties) {
                     val asmType = codegen.typeMapper.mapType(type)
 
@@ -118,7 +120,7 @@ open class ParcelableCodegenExtension : ExpressionCodegenExtension {
                     v.load(0, containerAsmType)
                     v.getfield(containerAsmType.internalName, fieldName, asmType.descriptor)
 
-                    val serializer = ParcelSerializer.get(type, asmType, codegen.typeMapper)
+                    val serializer = ParcelSerializer.get(type, asmType, context)
                     serializer.writeValue(v)
                 }
             }
@@ -188,12 +190,13 @@ open class ParcelableCodegenExtension : ExpressionCodegenExtension {
                 v.dup()
 
                 val asmConstructorParameters = StringBuilder()
+                val context = ParcelSerializer.ParcelSerializerContext(codegen.typeMapper, containerAsmType)
 
                 for ((_, type) in properties) {
                     val asmType = codegen.typeMapper.mapType(type)
                     asmConstructorParameters.append(asmType.descriptor)
 
-                    val serializer = ParcelSerializer.get(type, asmType, codegen.typeMapper)
+                    val serializer = ParcelSerializer.get(type, asmType, context)
                     v.load(1, parcelAsmType)
                     serializer.readValue(v)
                 }
