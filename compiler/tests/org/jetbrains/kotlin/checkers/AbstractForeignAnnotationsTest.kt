@@ -58,7 +58,6 @@ abstract class AbstractForeignAnnotationsTest : AbstractDiagnosticsTest() {
     }
 
     private fun loadAnalysisFlags(module: List<TestFile>): Map<AnalysisFlag<*>, Any?> {
-
         val globalState = module.hasDirective(JSR305_GLOBAL_DIRECTIVE) ?: Jsr305State.ENABLE
         val migrationState = module.hasDirective(JSR305_MIGRATION_DIRECTIVE)
 

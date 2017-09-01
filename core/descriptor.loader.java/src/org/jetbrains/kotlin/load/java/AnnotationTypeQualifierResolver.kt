@@ -50,7 +50,7 @@ data class Jsr305AnnotationsPolicy(
     fun isIgnored(): Boolean = this == IGNORE
 }
 
-class AnnotationTypeQualifierResolver(storageManager: StorageManager, private val policyForJsr305Annotations: Jsr305AnnotationsPolicy) {
+class AnnotationTypeQualifierResolver(storageManager: StorageManager, val policyForJsr305Annotations: Jsr305AnnotationsPolicy) {
     enum class QualifierApplicabilityType {
         METHOD_RETURN_TYPE, VALUE_PARAMETER, FIELD, TYPE_USE
     }
@@ -112,9 +112,10 @@ class AnnotationTypeQualifierResolver(storageManager: StorageManager, private va
                         }
                         .fold(0) { acc: Int, applicabilityType -> acc or (1 shl applicabilityType.ordinal) }
 
-        val typeQualifier =
-                typeQualifierDefaultAnnotatedClass.annotations.firstNotNullResult(this::resolveTypeQualifierAnnotation)
-                ?: return null
+        val typeQualifier = typeQualifierDefaultAnnotatedClass.annotations.firstNotNullResult {
+            it.takeIf { resolveTypeQualifierAnnotation(it) != null }
+        } ?: return null
+
         return TypeQualifierWithApplicability(typeQualifier, elementTypesMask)
     }
 
