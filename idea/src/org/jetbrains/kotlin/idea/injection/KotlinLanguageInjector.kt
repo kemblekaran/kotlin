@@ -379,7 +379,7 @@ class KotlinLanguageInjector(
                                      as? PatternConditionPlus<*, *> ?: return emptyList()
         val psiClassNamePatternCondition = classCondition.valuePattern.condition.conditions.
                 firstIsInstanceOrNull<PsiClassNamePatternCondition>() ?: return emptyList()
-        val valuePatternCondition = psiClassNamePatternCondition.stringPattern.condition.conditions.firstIsInstanceOrNull<ValuePatternCondition<String>>() ?: return emptyList()
+        val valuePatternCondition = psiClassNamePatternCondition.namePattern.condition.conditions.firstIsInstanceOrNull<ValuePatternCondition<String>>() ?: return emptyList()
         return valuePatternCondition.values
     }
 
